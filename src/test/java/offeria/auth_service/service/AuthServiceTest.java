@@ -10,6 +10,7 @@ import offeria.auth_service.security.JwtUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,10 +29,13 @@ class AuthServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
     @Mock
     private PasswordEncoder passwordEncoder;
+
     @Mock
     private JwtUtils jwtUtils;
+
     @Mock
     private AuthenticationManager authenticationManager;
 
@@ -65,7 +69,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_Success() {
+    void register_Success_AssignsDefaultUserRole() {
         when(userRepository.existsByUsername(any())).thenReturn(false);
         when(userRepository.existsByEmail(any())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encodedPassword");
@@ -73,28 +77,51 @@ class AuthServiceTest {
 
         AuthResponse response = authService.register(registerRequest);
 
+        ArgumentCaptor<User> userCaptor =
+                ArgumentCaptor.forClass(User.class);
+
+        verify(userRepository).save(userCaptor.capture());
+
+        User savedUser = userCaptor.getValue();
+
         assertNotNull(response);
         assertEquals("jwt-token", response.getToken());
         assertEquals("testuser", response.getUsername());
-        verify(userRepository, times(1)).save(any());
+        assertEquals(Set.of("ROLE_USER"), response.getRoles());
+        assertEquals("Bearer", response.getType());
+
+        assertEquals(Set.of("ROLE_USER"), savedUser.getRoles());
+        assertFalse(savedUser.getRoles().contains("ROLE_ADMIN"));
     }
 
     @Test
     void register_UsernameExists_ThrowsException() {
         when(userRepository.existsByUsername(any())).thenReturn(true);
 
-        assertThrows(ApiException.class, () -> authService.register(registerRequest));
+        assertThrows(
+                ApiException.class,
+                () -> authService.register(registerRequest)
+        );
+
+        verify(userRepository, never()).save(any());
     }
 
     @Test
-    void login_Success() {
-        when(userRepository.findByUsername(any())).thenReturn(Optional.of(user));
-        when(jwtUtils.generateToken(any())).thenReturn("jwt-token");
+    void login_Success_ReturnsUserRoles() {
+        when(userRepository.findByUsername(any()))
+                .thenReturn(Optional.of(user));
+
+        when(jwtUtils.generateToken(any()))
+                .thenReturn("jwt-token");
 
         AuthResponse response = authService.login(loginRequest);
 
         assertNotNull(response);
         assertEquals("jwt-token", response.getToken());
-        verify(authenticationManager, times(1)).authenticate(any());
+        assertEquals("testuser", response.getUsername());
+        assertEquals(Set.of("ROLE_USER"), response.getRoles());
+        assertEquals("Bearer", response.getType());
+
+        verify(authenticationManager).authenticate(any());
     }
 }
