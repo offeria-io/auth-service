@@ -8,11 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Set;
-
-/**
- * DTO for User registration request.
- */
 @Data
 @Builder
 @NoArgsConstructor
@@ -30,6 +25,4 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
-
-    private Set<String> roles;
 }
